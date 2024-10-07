@@ -11,7 +11,7 @@ describe('Account endpoints for v1.1 API', () => {
   });
 
   it('.accountSettings/.updateAccountSettings/.updateAccountProfile - Change account settings & profile', async () => {
-    const user = await client.currentUser();
+    const user = await client.v2.me();
     const settings = await client.v1.accountSettings();
 
     expect(settings.language).to.be.a('string');
@@ -19,10 +19,10 @@ describe('Account endpoints for v1.1 API', () => {
     const testBio = 'Hello, test bio ' + String(Math.random());
     await client.v1.updateAccountProfile({ description: testBio });
 
-    const modifiedUser = await client.currentUser(true);
-    expect(modifiedUser.description).to.equal(testBio);
+    const modifiedUser = await client.v2.me();
+    expect(modifiedUser.data.description).to.equal(testBio);
 
-    await client.v1.updateAccountProfile({ description: user.description as string });
+    await client.v1.updateAccountProfile({ description: user.data.description as string });
 
     await client.v1.updateAccountSettings({ lang: 'en' });
     const updatedSettings = await client.v1.accountSettings();

@@ -25,7 +25,7 @@ describe.skip('DM endpoints for v1.1 API', () => {
     }
 
     const v1Client = client.v1;
-    const selfAccount = await client.currentUser();
+    const selfAccount = await client.v2.me();
     const msgText = `Hello, this is a new direct message from an automated script - UUID: ${TEST_UUID}`;
 
     const sentMessage = await v1Client.sendDm({
@@ -48,7 +48,7 @@ describe.skip('DM endpoints for v1.1 API', () => {
       expect(msgCreate.message_data.attachment).to.be.undefined;
       expect(msgCreate.message_data.ctas).to.be.undefined;
       expect(msgCreate.target.recipient_id).to.equal(TARGET_USER_ID);
-      expect(msgCreate.sender_id).to.equal(selfAccount.id_str);
+      expect(msgCreate.sender_id).to.equal(selfAccount.data.id);
     }
   }).timeout(60 * 1000);
 
@@ -58,7 +58,7 @@ describe.skip('DM endpoints for v1.1 API', () => {
     }
 
     const v1Client = client.v1;
-    const selfAccount = await client.currentUser();
+    const selfAccount = await client.v2.me();
 
     const eventPaginator = await v1Client.listDmEvents();
 
@@ -78,7 +78,7 @@ describe.skip('DM endpoints for v1.1 API', () => {
       expect(msgCreate.message_data.attachment).to.be.undefined;
       expect(msgCreate.message_data.ctas).to.be.undefined;
       expect(msgCreate.target.recipient_id).to.equal(TARGET_USER_ID);
-      expect(msgCreate.sender_id).to.equal(selfAccount.id_str);
+      expect(msgCreate.sender_id).to.equal(selfAccount.data.id);
 
       await v1Client.deleteDm(evt.id);
     }

@@ -1,16 +1,16 @@
-import { TwitterApi } from '..';
+import { TwitterApi, TwitterApiReadOnly } from '..';
 import * as dotenv from 'dotenv';
 
 dotenv.config({ path: __dirname + '/../../.env' });
 
 /** User OAuth 1.0a client */
-export function getUserClient(this: any) {
+export function getUserClient(this: any): TwitterApi {
   return new TwitterApi({
     appKey: process.env.CONSUMER_TOKEN!,
     appSecret: process.env.CONSUMER_SECRET!,
     accessToken: process.env.OAUTH_TOKEN!,
     accessSecret: process.env.OAUTH_SECRET!,
-  });
+  } as any);
 }
 
 export function getUserKeys() {
@@ -27,11 +27,11 @@ export async function sleepTest(ms: number) {
 }
 
 /** User-unlogged OAuth 1.0a client */
-export function getRequestClient() {
-  return new TwitterApi({
+export function getRequestClient(): TwitterApiReadOnly {
+  return new TwitterApiReadOnly({
     appKey: process.env.CONSUMER_TOKEN!,
     appSecret: process.env.CONSUMER_SECRET!,
-  });
+  } as any);
 }
 
 export function getRequestKeys() {
@@ -46,31 +46,31 @@ export function getAuthLink(callback: string) {
   return getRequestClient().generateAuthLink(callback);
 }
 
-export async function getAccessClient(verifier: string) {
-  const requestClient = new TwitterApi({
+export async function getAccessClient(verifier: string): Promise<TwitterApi> {
+  const requestClient = new TwitterApiReadOnly({
     appKey: process.env.CONSUMER_TOKEN!,
     appSecret: process.env.CONSUMER_SECRET!,
     accessToken: process.env.OAUTH_TOKEN!,
     accessSecret: process.env.OAUTH_SECRET!,
-  });
+  } as any);
 
   const { client } = await requestClient.login(verifier);
   return client;
 }
 
 /** App OAuth 2.0 client */
-export function getAppClient() {
-  let requestClient: TwitterApi;
+export async function getAppClient(): Promise<TwitterApi> {
+  let requestClient: TwitterApiReadOnly;
 
   if (process.env.BEARER_TOKEN) {
-    requestClient = new TwitterApi(process.env.BEARER_TOKEN);
-    return Promise.resolve(requestClient);
+    requestClient = new TwitterApiReadOnly({ bearerToken: process.env.BEARER_TOKEN } as any);
+    return Promise.resolve(requestClient as unknown as TwitterApi);
   }
   else {
-    requestClient = new TwitterApi({
+    requestClient = new TwitterApiReadOnly({
       appKey: process.env.CONSUMER_TOKEN!,
       appSecret: process.env.CONSUMER_SECRET!,
-    });
-    return requestClient.appLogin();
+    } as any);
+    return (await requestClient.appLogin()) as unknown as TwitterApi;
   }
 }

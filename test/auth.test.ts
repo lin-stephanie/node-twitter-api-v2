@@ -6,12 +6,12 @@ import { getRequestClient } from '../src/test/utils';
 const clientWithoutUser = getRequestClient();
 
 describe('Authentication API', () => {
-  it('.generateAuthLink - Create a auth link', async () => {
-    const tokens = await clientWithoutUser.generateAuthLink('oob');
+  it('.generateAuthLink - Create an auth link', async () => {
+    const { url, oauth_token, oauth_token_secret, oauth_callback_confirmed } = await clientWithoutUser.generateAuthLink('oob');
 
-    expect(tokens.oauth_token).to.be.a('string');
-    expect(tokens.oauth_token_secret).to.be.a('string');
-    expect(tokens.oauth_callback_confirmed).to.be.equal('true');
-    expect(tokens.url).to.be.a('string');
+    expect(oauth_token).to.be.a('string');
+    expect(oauth_token_secret).to.be.a('string');
+    expect(oauth_callback_confirmed).to.be.equal('true');
+    expect(url).to.be.a('string');
   }).timeout(1000 * 120);
 });

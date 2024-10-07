@@ -156,7 +156,7 @@ export default class TwitterApiReadOnly extends TwitterApiBase {
       appSecret: tokens.appSecret,
       accessToken: oauth_result.oauth_token,
       accessSecret: oauth_result.oauth_token_secret,
-    }, this._requestMaker.clientSettings);
+    } as any, this._requestMaker.clientSettings);
 
     return {
       accessToken: oauth_result.oauth_token,
@@ -185,11 +185,11 @@ export default class TwitterApiReadOnly extends TwitterApiBase {
       throw new Error('You must setup TwitterApi instance with consumer keys to accept app-only login');
 
     // Create a client with Basic authentication
-    const basicClient = new TwitterApi({ username: tokens.appKey, password: tokens.appSecret }, this._requestMaker.clientSettings);
+const basicClient = new TwitterApi({ username: tokens.appKey, password: tokens.appSecret } as any, this._requestMaker.clientSettings);
     const res = await basicClient.post<BearerTokenResult>('https://api.x.com/oauth2/token', { grant_type: 'client_credentials' });
 
     // New object with Bearer token
-    return new TwitterApi(res.access_token, this._requestMaker.clientSettings);
+    return new TwitterApi({ accessToken: res.access_token } as any, this._requestMaker.clientSettings);
   }
 
   /* OAuth 2 user authentication */
@@ -356,7 +356,7 @@ export default class TwitterApiReadOnly extends TwitterApiBase {
   }
 
   protected parseOAuth2AccessTokenResult(result: AccessOAuth2TokenResult): IParsedOAuth2TokenResult {
-    const client = new TwitterApi(result.access_token, this._requestMaker.clientSettings);
+    const client = new TwitterApi({ accessToken: result.access_token } as any, this._requestMaker.clientSettings);
     const scope = result.scope.split(' ').filter(e => e) as TOAuth2Scope[];
 
     return {

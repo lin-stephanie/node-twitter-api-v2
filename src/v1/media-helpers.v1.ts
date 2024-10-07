@@ -1,63 +1,82 @@
-import * as fs from 'fs';
 import { safeDeprecationWarning } from '../helpers';
 import type { TUploadableMedia, TUploadTypeV1 } from '../types';
 import { EUploadMimeType } from '../types';
+
+interface FileSystemModule {
+  promises: {
+    FileHandle: any;
+    open: (path: string, flags: string) => Promise<any>;
+  };
+  Stats: any;
+  readFile: (handle: number, callback: (err: NodeJS.ErrnoException | null, data: Buffer) => void) => void;
+  fstat: (handle: number, callback: (err: NodeJS.ErrnoException | null, stats: FileSystemModule['Stats']) => void) => void;
+  read: (fd: number, buffer: Buffer, offset: number, length: number, position: number, callback: (err: NodeJS.ErrnoException | null, bytesRead: number, buffer: Buffer) => void) => void;
+}
+
+let fs: FileSystemModule | null = null;
+if (typeof window === 'undefined') {
+  fs = require('fs') as FileSystemModule;
+}
+
+type FileHandleWithMethods = {
+  readFile: () => Promise<Buffer>;
+  stat: () => Promise<{ size: number }>;
+  read: (buffer: Buffer, offset: number, length: number, position: number) => Promise<{ bytesRead: number }>;
+};
+
+export type TFileHandle = number | Buffer | FileHandleWithMethods;
 
 // -------------
 // Media helpers
 // -------------
 
-export type TFileHandle = fs.promises.FileHandle | number | Buffer;
-
-export async function readFileIntoBuffer(file: TUploadableMedia) {
+export async function readFileIntoBuffer(file: TUploadableMedia): Promise<Buffer> {
   const handle = await getFileHandle(file);
 
   if (typeof handle === 'number') {
     return new Promise<Buffer>((resolve, reject) => {
-      fs.readFile(handle, (err, data) => {
-        if (err) {
-          return reject(err);
-        }
-        resolve(data);
-      });
+      fs!.readFile(handle, (err, data) => err ? reject(err) : resolve(data));
     });
   } else if (handle instanceof Buffer) {
     return handle;
-  } else {
+  } else if ('readFile' in handle) {
     return handle.readFile();
-  }
-}
-
-export function getFileHandle(file: TUploadableMedia) {
-  if (typeof file === 'string') {
-    return fs.promises.open(file, 'r');
-  } else if (typeof file === 'number') {
-    return file;
-  } else if (typeof file === 'object' && !(file instanceof Buffer)) {
-    return file;
-  } else if (!(file instanceof Buffer)) {
-    throw new Error('Given file is not valid, please check its type.');
   } else {
-    return file;
+    throw new Error('Invalid file handle');
   }
 }
 
-export async function getFileSizeFromFileHandle(fileHandle: TFileHandle) {
-  // Get the file size
-  if (typeof fileHandle === 'number') {
-    const stats = await new Promise((resolve, reject) => {
-      fs.fstat(fileHandle as number, (err, stats) => {
-        if (err) reject(err);
-        resolve(stats);
-      });
-    }) as fs.Stats;
+export async function getFileHandle(file: TUploadableMedia): Promise<TFileHandle> {
+  if (typeof window === 'undefined') {
+    // Node.js environment
+    if (typeof file === 'string') {
+      return fs!.promises.open(file, 'r');
+    } else if (typeof file === 'number' || file instanceof Buffer) {
+      return file;
+    } else if (typeof file === 'object' && 'readFile' in file && 'stat' in file && 'read' in file) {
+      return file as FileHandleWithMethods;
+    }
+  } else {
+    // Browser environment
+    if (file instanceof Blob || file instanceof ArrayBuffer) {
+      return file as Buffer;
+    }
+  }
+  throw new Error('Invalid file type');
+}
 
+export async function getFileSizeFromFileHandle(fileHandle: TFileHandle): Promise<number> {
+  if (typeof fileHandle === 'number') {
+    const stats = await new Promise<FileSystemModule['Stats']>((resolve, reject) => {
+      fs!.fstat(fileHandle, (err, stats) => err ? reject(err) : resolve(stats));
+    });
     return stats.size;
   } else if (fileHandle instanceof Buffer) {
     return fileHandle.length;
-  } else {
+  } else if ('stat' in fileHandle) {
     return (await fileHandle.stat()).size;
   }
+  throw new Error('Invalid file handle');
 }
 
 export function getMimeType(file: TUploadableMedia, type?: TUploadTypeV1 | string, mimeType?: EUploadMimeType | string) {
@@ -123,29 +142,23 @@ export function sleepSecs(seconds: number) {
 }
 
 export async function readNextPartOf(file: TFileHandle, chunkLength: number, bufferOffset = 0, buffer?: Buffer): Promise<[Buffer, number]> {
-  if (file instanceof Buffer) {
-    const rt = file.slice(bufferOffset, bufferOffset + chunkLength);
-    return [rt, rt.length];
-  }
-
-  if (!buffer) {
-    throw new Error('Well, we will need a buffer to store file content.');
-  }
-
+  const actualBuffer: Buffer = buffer || Buffer.alloc(chunkLength);
   let bytesRead: number;
 
   if (typeof file === 'number') {
-    bytesRead = await new Promise((resolve, reject) => {
-      fs.read(file as number, buffer, 0, chunkLength, bufferOffset, (err, nread) => {
-        if (err) reject(err);
-        resolve(nread);
-      });
+    bytesRead = await new Promise<number>((resolve, reject) => {
+      fs!.read(file, actualBuffer, 0, chunkLength, bufferOffset, (err, nread) => err ? reject(err) : resolve(nread));
     });
-  }
-  else {
-    const res = await file.read(buffer, 0, chunkLength, bufferOffset);
-    bytesRead = res.bytesRead;
+  } else if (file instanceof Buffer) {
+    const rt = file.slice(bufferOffset, bufferOffset + chunkLength);
+    rt.copy(actualBuffer);
+    bytesRead = rt.length;
+  } else if ('read' in file) {
+    const { bytesRead: nread } = await file.read(actualBuffer, 0, chunkLength, bufferOffset);
+    bytesRead = nread;
+  } else {
+    throw new Error('Invalid file handle');
   }
 
-  return [buffer, bytesRead];
+  return [actualBuffer.slice(0, bytesRead), bytesRead];
 }

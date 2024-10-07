@@ -38,18 +38,22 @@ class SimpleOAuthStepHelperPlugin implements ITwitterApiClientPlugin {
     this.cache[args.oauthResult.oauth_token] = args.oauthResult.oauth_token_secret;
   }
 
-  login(oauthToken: string, oauthVerifier: string) {
+  async login(oauthToken: string, oauthVerifier: string) {
     if (!oauthVerifier || !this.isOAuthTokenValid(oauthToken)) {
       throw new Error('Invalid or expired token.');
     }
 
     const client = new TwitterApi({
-      ...getRequestKeys(),
+      appKey: getRequestKeys().appKey,
+      appSecret: getRequestKeys().appSecret,
+    } as any);
+
+    const { client: loggedClient } = await (client as any).loginWithOAuth1({
       accessToken: oauthToken,
       accessSecret: this.cache[oauthToken],
+      verifier: oauthVerifier,
     });
-
-    return client.login(oauthVerifier);
+    return loggedClient;
   }
 
   isOAuthTokenValid(oauthToken: string) {
@@ -59,7 +63,7 @@ class SimpleOAuthStepHelperPlugin implements ITwitterApiClientPlugin {
 
 describe('Plugin API', () => {
   it('Cache a single request with a plugin', async () => {
-    const client = new TwitterApi(getUserKeys(), { plugins: [new SimpleCacheTestPlugin()] });
+    const client = new TwitterApi(getUserKeys() as any, { plugins: [new SimpleCacheTestPlugin()] });
 
     const user = await client.v1.verifyCredentials();
     const anotherRequest = await client.v1.verifyCredentials();
@@ -68,16 +72,16 @@ describe('Plugin API', () => {
   }).timeout(1000 * 30);
 
   it('Remember OAuth token secret between step 1 and 2 of authentication', async () => {
-    const client = new TwitterApi(getRequestKeys(), { plugins: [new SimpleOAuthStepHelperPlugin()] });
+    const client = new TwitterApi(getRequestKeys() as any, { plugins: [new SimpleOAuthStepHelperPlugin()] });
 
-    const { oauth_token } = await client.generateAuthLink('oob');
+    const { oauth_token } = await (client.v1 as any).oauth.requestToken({ oauth_callback: 'oob' });
 
     // Is oauth token registered in cache?
     const loginPlugin = client.getPluginOfType(SimpleOAuthStepHelperPlugin)!;
     expect(loginPlugin.isOAuthTokenValid(oauth_token)).to.equal(true);
 
     // Must login through
-    // const { client: loggedClient, accessToken, accessSecret } = await loginPlugin.login(oauth_token, 'xxxxxxxx');
+    // const loggedClient = await loginPlugin.login(oauth_token, 'xxxxxxxx');
     // - Save accessToken, accessSecret to persistent storage
   }).timeout(1000 * 30);
 });
